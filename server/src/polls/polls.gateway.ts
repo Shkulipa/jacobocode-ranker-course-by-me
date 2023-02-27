@@ -1,7 +1,7 @@
 import {
-  BadRequestException,
   Logger,
   UseFilters,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -12,9 +12,13 @@ import {
   OnGatewayDisconnect,
   WebSocketServer,
   SubscribeMessage,
+  ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Namespace } from 'socket.io';
 import { WsCatchAllFilter } from 'src/exceptions/ws-catch-all-filter';
+import { NominationDto } from './dtos';
+import { GatewayAdminGuard } from './gateway-admin.guard';
 import { PollsService } from './polls.service';
 import { SocketWithAuth } from './types';
 
@@ -35,7 +39,7 @@ export class PollsGateway
     this.logger.log(`Web Socket Gateway initialized.`);
   }
 
-  handleConnection(client: SocketWithAuth) {
+  async handleConnection(client: SocketWithAuth) {
     const sockets = this.io.sockets;
 
     this.logger.debug(
@@ -46,21 +50,140 @@ export class PollsGateway
     this.logger.debug(`Number of connected sockets: ${sockets.size}`);
 
     this.io.emit(`hello`, `from ${client.id}`);
-  }
 
-  handleDisconnect(client: SocketWithAuth) {
-    const sockets = this.io.sockets;
+    // connect to room
+    const roomName = client.pollID;
+    await client.join(roomName);
+
+    // options of room
+    const connectedClients = this.io.adapter.rooms?.get(roomName)?.size ?? 0;
 
     this.logger.debug(
-      `Socket disconnect with userID: ${client.userID}, pollID: ${client.pollID}, and name: ${client.name}`,
+      `userID: ${client.userID} joined room with name: ${roomName}`,
+    );
+    this.logger.debug(
+      `Total clients connected to room '${roomName}': ${connectedClients}`,
     );
 
-    this.logger.log(`Disconnected socket id: ${client.id} connected!`);
-    this.logger.debug(`Number of connected sockets: ${sockets.size}`);
+    const updatedPoll = await this.pollsService.addParticipant({
+      pollID: client.pollID,
+      userID: client.userID,
+      name: client.name,
+    });
+
+    this.io.to(roomName).emit('poll_updated', updatedPoll);
   }
 
-  @SubscribeMessage('test')
-  async test() {
-    throw new BadRequestException("{ test: 'test' }");
+  async handleDisconnect(client: SocketWithAuth) {
+    const sockets = this.io.sockets;
+
+    const { pollID, userID } = client;
+    const updatedPoll = await this.pollsService.removeParticipant(
+      pollID,
+      userID,
+    );
+
+    const roomName = client.pollID;
+    const clientCount = this.io.adapter.rooms?.get(roomName)?.size ?? 0;
+
+    this.logger.log(`Disconnected socket id: ${client.id}`);
+    this.logger.debug(`Number of connected sockets: ${sockets.size}`);
+    this.logger.debug(
+      `Total clients connected to room '${roomName}': ${clientCount}`,
+    );
+
+    // updatedPoll could be undefined if the the poll already started
+    // in this case, the socket is disconnect, but no the poll state
+    if (updatedPoll) {
+      this.io.to(pollID).emit('poll_updated', updatedPoll);
+    }
+  }
+
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('remove_participant')
+  async removeParticipant(
+    @ConnectedSocket() client: SocketWithAuth,
+    @MessageBody('id') id: string,
+  ) {
+    this.logger.debug(
+      `Attempting to remove participant ${id} from poll ${client.pollID}`,
+    );
+
+    const updatedPoll = await this.pollsService.removeParticipant(
+      client.pollID,
+      id,
+    );
+
+    if (updatedPoll) {
+      this.io.to(client.pollID).emit('poll_updated', updatedPoll);
+    }
+  }
+
+  @SubscribeMessage('nominate')
+  async nominate(
+    @ConnectedSocket() client: SocketWithAuth,
+    @MessageBody() nomination: NominationDto,
+  ): Promise<void> {
+    this.logger.debug(
+      `Attempting to add nomination for user ${client.userID} to poll ${client.pollID}\n${nomination.text}`,
+    );
+
+    const updatedPoll = await this.pollsService.addNomination({
+      pollID: client.pollID,
+      userID: client.userID,
+      text: nomination.text,
+    });
+
+    this.io.to(client.pollID).emit('poll_updated', updatedPoll);
+  }
+
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('remove_nomination')
+  async removeNomination(
+    @ConnectedSocket() client: SocketWithAuth,
+    @MessageBody('id') nominationID: string,
+  ): Promise<void> {
+    this.logger.debug(
+      `Attempting to remove nomination ${nominationID} from poll ${client.pollID}`,
+    );
+
+    const updatedPoll = await this.pollsService.removeNomination(
+      client.pollID,
+      nominationID,
+    );
+
+    this.io.to(client.pollID).emit('poll_updated', updatedPoll);
+  }
+
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('start_vote')
+  async startVote(@ConnectedSocket() client: SocketWithAuth): Promise<void> {
+    this.logger.debug(`Attempting to start voting for poll: ${client.pollID}`);
+
+    const updatedPoll = await this.pollsService.startPoll(client.pollID);
+
+    this.io.to(client.pollID).emit('poll_updated', updatedPoll);
+  }
+
+  @SubscribeMessage('submit_rankings')
+  async submitRankings(
+    @ConnectedSocket() client: SocketWithAuth,
+    @MessageBody('rankings') rankings: string[],
+  ): Promise<void> {
+    this.logger.debug(
+      `Submitting votes for user: ${client.userID} belonging to pollID: "${client.pollID}"`,
+    );
+
+    const updatedPoll = await this.pollsService.submitRankings({
+      pollID: client.pollID,
+      userID: client.userID,
+      rankings,
+    });
+
+    // an enhancement might be to not send ranking data to clients,
+    // but merely a list of the participants who have voted since another
+    // participant getting this data could lead to cheating
+    // we may add this while working on the client
+    this.io.to(client.pollID).emit('poll_updated', updatedPoll);
   }
 }
