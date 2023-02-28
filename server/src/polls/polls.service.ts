@@ -100,7 +100,7 @@ export class PollsService {
   ): Promise<Poll | void> {
     const poll = await this.pollsRepository.getPoll(pollID);
 
-    if (!poll.hasStarted) {
+    if (!poll?.hasStarted) {
       const updatedPoll = await this.pollsRepository.removeParticipant(
         pollID,
         userID,

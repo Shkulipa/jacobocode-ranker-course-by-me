@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { AppActions, AppState } from './state';
+import { AppActions, AppPage, AppState } from './state';
 
 export const socketIOUrl = `http://${import.meta.env.VITE_API_HOST}/${import.meta.env.VITE_POLLS_NAMESPACE}`;
 
@@ -38,12 +38,20 @@ export const createSocketWithHandlers = ({
       message: 'Failed to connect to the poll',
     });
 
+    actions.reset();
+
     actions.stopLoading();
   });
 
   socket.on('poll_updated', (poll) => {
     console.log('event: "poll_updated" received', poll);
     actions.updatePoll(poll);
+  });
+
+  socket.on('poll_cancelled', (poll) => {
+    console.log('event: "poll_cancelled" received', poll);
+    actions.reset();
+    actions.setPage(AppPage.Welcome);
   });
 
   return socket;

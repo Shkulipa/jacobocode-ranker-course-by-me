@@ -9,13 +9,14 @@ export const Voting: React.FC = () => {
   const [rankings, setRankings] = useState<string[]>([]);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmVotes, setConfirmVotes] = useState(false);
+  const isVotered = rankings.length >= 3;
 
   const toggleNomination = (id: string) => {
     const position = rankings.findIndex((ranking) => ranking === id);
-    const hasVotesRemaining =
-      (currentState.poll?.votesPerVoter || 0) - rankings.length > 0;
 
-    if (position < 0 && hasVotesRemaining) {
+    if(isVotered) return;
+
+    if (position < 0 && !isVotered) {
       setRankings([...rankings, id]);
     } else {
       setRankings([
