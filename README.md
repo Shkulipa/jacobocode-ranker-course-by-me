@@ -1,4 +1,6 @@
 tutorial: https://www.youtube.com/playlist?list=PLnrGn4P6C4P5J2rSSyiAyxZegws4SS8ey
+fork by author: https://github.com/Shkulipa/jacobcode-ranker-course-by-author
+author repository: https://github.com/JacobSNGoodwin/ranker-course
 
 this one - my try
 
