@@ -33,6 +33,11 @@ export const createSocketWithHandlers = ({
   socket.on('connect_error', () => {
     console.log(`Failed to connect socket`);
 
+    actions.addWsError({
+      type: 'Connection Error',
+      message: 'Failed to connect to the poll',
+    });
+
     actions.stopLoading();
   });
 
