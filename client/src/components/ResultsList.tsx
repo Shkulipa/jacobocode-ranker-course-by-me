@@ -1,10 +1,10 @@
 import React from 'react';
 import ResultCard from './ui/ResultCard';
 import HorizontalSwipeList from './ui/HorizontalSwipeList';
-import { RoundResult } from 'shared/poll-types';
+import { Results } from 'shared/poll-types';
 
 type ResultsList = {
-  results: DeepReadonly<RoundResult[]>;
+  results: DeepReadonly<Results>;
 };
 
 const ResultsList: React.FC<ResultsList> = ({ results }) => {

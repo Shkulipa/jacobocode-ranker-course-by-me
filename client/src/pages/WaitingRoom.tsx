@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BsPencilSquare } from 'react-icons/bs';
 import { MdContentCopy, MdPeopleOutline } from 'react-icons/md';
-import { useCopyToClipboard } from 'react-use';
+import useCopyToClipboard from 'react-use/lib/useCopyToClipboard';
 import { useSnapshot } from 'valtio';
 import NominationForm from '../components/NominationForm';
 import ParticipantList from '../components/ParticipantList';

@@ -15,7 +15,7 @@ export const Results: React.FC = () => {
         <div className="w-full">
           <h1 className="text-center mt-12 mb-4">Results</h1>
           {poll?.results.length ? (
-            <ResultCard results={poll?.results} />
+            <ResultCard result={poll?.results[0]} />
           ) : (
             <p className="text-center text-xl">
               <span className="text-orange-600">{rankingsCount}</span> of{' '}
